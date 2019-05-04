@@ -2,10 +2,12 @@
 %{
     #include <stdio.h>
     #include <stdlib.h>
+    #include "y.tab.h"
 
     int num_line = 0;
     int num_comment_line = 0;
     int flag = 1;
+    char buf[256];
 %}
 
 
@@ -132,12 +134,14 @@ int yywrap(void)
     return 1;
 }
 
-int main(int argc,char *argv[])
+/*
+int main(int argc, char *argv[])
 {
-    yyin = fopen(argv[1],"r");
+    yyin = fopen(argv[1], "r");
     yylex();
     printf("\nParse over, the line number is %d.\n\n", num_line);
     printf("comment: %d lines\n\n", num_comment_line);
 
     return 0;
 }
+*/
