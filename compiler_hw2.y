@@ -2,11 +2,13 @@
 %{
     #include <stdio.h>
     #include <stdlib.h>
+    #include <string.h>
 
     extern int yylineno;
     extern int yylex();
     extern char* yytext;   // Get current token from lex
     extern char buf[256];  // Get current code line from lex
+    extern char code_line[128];
 
     void yyerror(char *s);
 
@@ -30,21 +32,37 @@
 /* Token without return */  /* terminals */
 %token PRINT 
 %token IF ELSE FOR
-%token ID SEMICOLON
+%token SEMICOLON
 %token INC DEC
 %token ADDASGN SUBASGN MULASGN DIVASGN MODASGN
 
+%token ASGN "="
+%token LB "("
+%token RB ")"
+%token COMMA ","
+%token LCB "{"
+%token RCB "}"
+
+
 
 /* Token with return, which need to sepcify type */
-%token <i_val> I_CONST
-%token <f_val> F_CONST
+%token <string> I_CONST
+%token <string> F_CONST
 %token <string> STR_CONST
+%token <string> ID 
 %token <string> INT FLOAT BOOL STRING VOID  /* the name of the types */
+
+%token <f_val> FAKETMP FAKETMP2 FAKETMP3 FAKETMP4 FAKETMP5
+
 
 
 /* Nonterminal with return, which need to sepcify type */
-%type <f_val> stat declaration compound_stat expression_stat print_func
-%type <string> assign_op type 
+%type <f_val> stat 
+%type <f_val> declaration compound_stat expression_stat 
+%type <f_val> print_func
+%type <f_val> type 
+%type <f_val> const
+%type <f_val> func_def
 
 /* Yacc will start at this nonterminal */
 %start program
@@ -54,7 +72,7 @@
 
 program
     : program stat
-    |
+    | stat
     ;
 
 stat
@@ -64,78 +82,67 @@ stat
     | print_func
     ;
 
+
 declaration
-    : type ID '=' initializer SEMICOLON
+    : type 
+      ID                    { strcat(code_line, $2); }
+      "="                   { ; }
+      initializer 
+      SEMICOLON             { strcat(code_line, ";"); }
     | type ID SEMICOLON
+    | type 
+      ID                    { strcat(code_line, $2); }
+      "("                   { ; }
+      parameters 
+      ")"                   { ; }
+    ;
+
+parameters
+    : type 
+      ID                    { strcat(code_line, $2); }
+    | type 
+      ID                    { strcat(code_line, $2); }
+      ","                   { ; }
+      parameters
     ;
 
 initializer
-    : assign_expr
+    : const
+    | ID                    { strcat(code_line, $1); }
     ;
 
 
 compound_stat
-    : '{' stat '}'  
+    : func_def
+    ;
+
+func_def
+    : declaration "{" FAKETMP4 "}"
     ;
 
 expression_stat
-    : ID            
+    : FAKETMP
     | const
-    | '(' expr ')' 
     ;
 
 const 
-    : I_CONST           { printf("type %s value %d", "int", $1); }
-    | F_CONST           { printf("type %s value %f", "float", $1); }
-    | STR_CONST         { printf("type %s value %s", "string", $1); }
-    ;
-
-expr
-    : assign_expr
-    | expr ',' assign_expr
-    ;
-
-assign_expr
-    : unary_expr assign_op assign_expr
-    ;
-
-assign_op
-    : '='
-    | ADDASGN       
-    | SUBASGN       
-    | MULASGN       
-    | DIVASGN       
-    | MODASGN       
-    ;
-
-unary_expr
-    : postfix_expr
-    | INC unary_expr
-    | DEC unary_expr
-    | unary_op unary_expr
-    ;
-
-postfix_expr
-    : expression_stat
-    ;
-
-unary_op
-    : '+'
-    | '-'
-    | '!'
+    : I_CONST               { strcat(code_line, $1); }
+    | F_CONST               { strcat(code_line, $1); }
+    | STR_CONST             { strcat(code_line, $1); }
     ;
 
 print_func
-    : PRINT '(' const ')'
+    : PRINT "(" FAKETMP4 ")"    { $$ = $3; }
     ;
+
 
 /* actions can be taken when meet the token or rule */
 type
-    : INT               { $$ = $1; }
-    | FLOAT             { $$ = $1; }
-    | BOOL              { $$ = $1; }
-    | STRING            { $$ = $1; }
-    | VOID              { $$ = $1; }
+    : INT                   { strcat(code_line, "int"); }
+    | FLOAT                 { strcat(code_line, "float"); }
+    | BOOL                  { strcat(code_line, "bool"); }
+    | STRING                { strcat(code_line, "string"); }
+    | VOID                  { strcat(code_line, "void"); }
     ;
 
 %%
