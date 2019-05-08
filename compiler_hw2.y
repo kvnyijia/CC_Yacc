@@ -31,10 +31,20 @@
 
 /* Token without return */  /* terminals */
 %token PRINT 
-%token IF ELSE FOR
+%token IF ELSE FOR WHILE
+%token RETURN
 %token SEMICOLON
-%token INC DEC
 %token ADDASGN SUBASGN MULASGN DIVASGN MODASGN
+%token OR AND NOT
+%token ADD "+" 
+%token SUB "-" 
+%token MUL "*" 
+%token DIV "/" 
+%token MOD "%"
+%token INC DEC
+%token LT "<"
+%token MT ">"
+%token LTE MTE EQ NE
 
 %token ASGN "="
 %token LB "("
@@ -80,69 +90,190 @@ stat
     | compound_stat
     | expression_stat
     | print_func
+    | func_def
+    | loop_stat             {;}
+    | jump_stat             {;}
     ;
 
 
 declaration
     : type 
-      ID                    { strcat(code_line, $2); }
+      ID                    { ; }
       "="                   { ; }
       initializer 
-      SEMICOLON             { strcat(code_line, ";"); }
+      SEMICOLON             { ; }
     | type ID SEMICOLON
-    | type 
-      ID                    { strcat(code_line, $2); }
-      "("                   { ; }
-      parameters 
-      ")"                   { ; }
     ;
 
 parameters
     : type 
-      ID                    { strcat(code_line, $2); }
+      ID                    { ; }
     | type 
-      ID                    { strcat(code_line, $2); }
+      ID                    { ; }
       ","                   { ; }
       parameters
     ;
 
 initializer
     : const
-    | ID                    { strcat(code_line, $1); }
+    | ID                    { ; }
     ;
 
 
 compound_stat
-    : func_def
+    : "{"                   {;}
+      "}"                   {;}
+    | "{"                   {;}
+      block_item_list 
+      "}"                   {;}
+    ;
+
+block_item_list
+    : block_item 
+    | block_item_list block_item
+    ;
+
+block_item
+    : stat
     ;
 
 func_def
-    : declaration "{" FAKETMP4 "}"
+    : type declarator compound_stat
+    ;
+
+declarator
+    : direct_declarator
+    ;
+
+direct_declarator
+    : ID
+    | direct_declarator "(" ")"
+    | direct_declarator "(" parameters ")"
+    ;
+
+
+loop_stat
+    : WHILE                 {;}
+      "("                   {;}
+      expr
+      ")"                   {;}
+      stat
+    ;
+
+jump_stat
+    : RETURN SEMICOLON
+    | RETURN expression_stat SEMICOLON
     ;
 
 expression_stat
-    : FAKETMP
+    : SEMICOLON             {;}
+    | expr SEMICOLON        {;}
+    ;
+
+expr
+    : assign_expr
+    | expr
+      ","
+      assign_expr
+    ;
+
+assign_expr
+    : conditional_expr
+    ;
+
+conditional_expr
+    : logical_or_expr
+    ;
+
+logical_or_expr
+    : logical_and_expr
+    | logical_or_expr OR logical_and_expr
+    ;
+
+logical_and_expr
+    : equality_expression
+    | logical_and_expr AND equality_expression
+    ;
+
+equality_expression
+	: relational_expression
+	| equality_expression EQ relational_expression
+	| equality_expression NE relational_expression
+	;
+
+relational_expression
+	: additive_expression
+	| relational_expression "<" additive_expression
+	| relational_expression ">" additive_expression
+	| relational_expression LTE additive_expression
+	| relational_expression MTE additive_expression
+	;
+
+additive_expression
+	: multiplicative_expression
+	| additive_expression "+" multiplicative_expression
+	| additive_expression "-" multiplicative_expression
+	;
+
+
+multiplicative_expression
+	: cast_expression
+	| multiplicative_expression "*" cast_expression
+	| multiplicative_expression "/" cast_expression
+	| multiplicative_expression "%" cast_expression
+	;
+
+
+cast_expression
+	: unary_expression
+	| "(" type ")" cast_expression
+	;
+
+
+unary_expression
+	: postfix_expression
+	| INC unary_expression
+	| DEC unary_expression
+	| unary_operator cast_expression
+	;
+
+unary_operator
+	: "+"
+	| "-"
+	| "!"
+	;
+
+postfix_expression
+	: primary_expr
+	| postfix_expression INC
+	| postfix_expression DEC
+	;
+
+primary_expr
+    : ID
     | const
+    | "(" expression_stat ")"
     ;
 
 const 
-    : I_CONST               { strcat(code_line, $1); }
-    | F_CONST               { strcat(code_line, $1); }
-    | STR_CONST             { strcat(code_line, $1); }
+    : I_CONST               { ; }
+    | F_CONST               { ; }
+    | STR_CONST             { ; }
     ;
 
 print_func
-    : PRINT "(" FAKETMP4 ")"    { $$ = $3; }
+    : PRINT "(" STR_CONST ")" SEMICOLON   {;}
+    | PRINT "(" ID ")" SEMICOLON         {;}
     ;
 
 
 /* actions can be taken when meet the token or rule */
 type
-    : INT                   { strcat(code_line, "int"); }
-    | FLOAT                 { strcat(code_line, "float"); }
-    | BOOL                  { strcat(code_line, "bool"); }
-    | STRING                { strcat(code_line, "string"); }
-    | VOID                  { strcat(code_line, "void"); }
+    : INT                   { ; }
+    | FLOAT                 { ; }
+    | BOOL                  { ; }
+    | STRING                { ; }
+    | VOID                  { ; }
     ;
 
 %%
