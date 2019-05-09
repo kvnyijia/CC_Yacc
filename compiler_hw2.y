@@ -53,18 +53,12 @@
 %token LCB "{"
 %token RCB "}"
 
-
-
 /* Token with return, which need to sepcify type */
 %token <string> I_CONST
 %token <string> F_CONST
 %token <string> STR_CONST
 %token <string> ID 
 %token <string> INT FLOAT BOOL STRING VOID  /* the name of the types */
-
-%token <f_val> FAKETMP FAKETMP2 FAKETMP3 FAKETMP4 FAKETMP5
-
-
 
 /* Nonterminal with return, which need to sepcify type */
 %type <f_val> stat 
@@ -86,13 +80,14 @@ program
     ;
 
 stat
-    : declaration
-    | compound_stat
-    | expression_stat
-    | print_func
-    | func_def
-    | loop_stat             {;}
-    | jump_stat             {;}
+    : declaration           { ; }
+    | compound_stat         { ; }
+    | expression_stat       { ; }
+    | print_func            { ; }
+    | func_def              { ; }
+    | selection_stat        { ; }
+    | loop_stat             { ; }
+    | jump_stat             { ; }
     ;
 
 
@@ -105,20 +100,10 @@ declaration
     | type ID SEMICOLON
     ;
 
-parameters
-    : type 
-      ID                    { ; }
-    | type 
-      ID                    { ; }
-      ","                   { ; }
-      parameters
-    ;
-
 initializer
     : const
     | ID                    { ; }
     ;
-
 
 compound_stat
     : "{"                   {;}
@@ -151,6 +136,18 @@ direct_declarator
     | direct_declarator "(" parameters ")"
     ;
 
+parameters
+    : type 
+      ID                    { ; }
+    | type 
+      ID                    { ; }
+      ","                   { ; }
+      parameters
+    ;
+
+selection_stat
+	: IF "(" expr ")" stat ELSE stat
+	| IF "(" expr ")" stat
 
 loop_stat
     : WHILE                 {;}
@@ -162,7 +159,7 @@ loop_stat
 
 jump_stat
     : RETURN SEMICOLON
-    | RETURN expression_stat SEMICOLON
+    | RETURN expr SEMICOLON
     ;
 
 expression_stat
@@ -172,14 +169,22 @@ expression_stat
 
 expr
     : assign_expr
-    | expr
-      ","
-      assign_expr
+    | expr "," assign_expr
     ;
 
 assign_expr
     : conditional_expr
+    | unary_expression assign_op assign_expr
     ;
+
+assign_op
+	: "="
+	| MULASGN
+	| DIVASGN
+	| MODASGN
+	| ADDASGN
+	| SUBASGN
+	;
 
 conditional_expr
     : logical_or_expr
@@ -247,7 +252,13 @@ postfix_expression
 	: primary_expr
 	| postfix_expression INC
 	| postfix_expression DEC
+    | postfix_expression "(" ")"
+    | postfix_expression "(" argument_list_expr ")"
 	;
+
+argument_list_expr
+    : assign_expr
+    | argument_list_expr "," assign_expr
 
 primary_expr
     : ID

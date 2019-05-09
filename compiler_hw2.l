@@ -46,11 +46,11 @@ star            [*]
 
  /* Assignment */
 "="     { strcat(code_line, yytext); return ASGN; }
-"+="    {  }
-"-="    {  }
-"*="    {  }
-"/="    {  }
-"%="    {  }
+"+="    { strcat(code_line, yytext); return ADDASGN; }
+"-="    { strcat(code_line, yytext); return SUBASGN; }
+"*="    { strcat(code_line, yytext); return MULASGN; }
+"/="    { strcat(code_line, yytext); return DIVASGN; }
+"%="    { strcat(code_line, yytext); return MODASGN; }
 
  /* Logical */
 "&&"    { strcat(code_line, yytext); return AND; }
@@ -94,9 +94,9 @@ star            [*]
 "return"                { strcat(code_line, yytext); return RETURN; }
 
  /* String Constant */
-\"                      { BEGIN STRING_STATE; }
-<STRING_STATE>\"        { BEGIN INITIAL; }
-<STRING_STATE>[^"]*     {  }
+\"                      { strcat(code_line, yytext); BEGIN STRING_STATE; return STR_CONST; }
+<STRING_STATE>\"        { strcat(code_line, yytext); BEGIN INITIAL; }
+<STRING_STATE>[^"]*     { strcat(code_line, yytext); }
 
  /* Number Constant */
 {integer}               { strcat(code_line, yytext);
@@ -106,8 +106,7 @@ star            [*]
 
  /* C type Comment */
 "/*"                    { BEGIN COMMENT;
-                          strcat(code_line, yytext);
-                          strcpy(code_line, yytext); }
+                          strcat(code_line, yytext); }
 <COMMENT>[^*\n]+        { strcat(code_line, yytext); }
 <COMMENT>\n             { printf("%d: %s\n", yylineno, code_line); 
                           strcpy(code_line, ""); }
@@ -116,7 +115,7 @@ star            [*]
                           strcat(code_line, yytext); }
 
  /* C++ type Comment */
-\/\/.*                  {  }
+\/\/.*                  { strcat(code_line, yytext); }
 
  /* Variable ID */
  {id}                   { strcat(code_line, yytext);
