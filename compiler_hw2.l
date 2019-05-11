@@ -118,7 +118,7 @@ star            [*]
 \/\/.*                  { strcat(code_line, yytext); }
 
  /* Variable ID */
- {id}                   { strcat(code_line, yytext);
+{id}                    { strcat(code_line, yytext);
                           yylval.string=yytext; return ID; }
 
  /* others */
@@ -128,7 +128,7 @@ star            [*]
                           strcpy(code_line, ""); }
 {space_or_tab}          { strcat(code_line, yytext); } /* Ignore */
 [^ \t\n]                { } /* Ignore other charactor sets */
-<<EOF>>                 { }
+<<EOF>>                 { puts("end!!"); return ENDOFFILE; }
 
 %%
 
