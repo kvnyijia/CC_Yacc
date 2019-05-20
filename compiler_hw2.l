@@ -119,7 +119,7 @@ star            [*]
 
  /* Variable ID */
 {id}                    { strcat(code_line, yytext);
-                          yylval.string=yytext; return ID; }
+                          strcpy(yylval.string, yytext); return ID; }
 
  /* others */
 ";"                     { strcat(code_line, yytext);
@@ -128,7 +128,7 @@ star            [*]
                           strcpy(code_line, ""); }
 {space_or_tab}          { strcat(code_line, yytext); } /* Ignore */
 [^ \t\n]                { } /* Ignore other charactor sets */
-<<EOF>>                 { puts("end!!"); return ENDOFFILE; }
+<<EOF>>                 { yyterminate(); }
 
 %%
 
