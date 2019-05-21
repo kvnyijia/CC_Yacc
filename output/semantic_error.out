@@ -27,10 +27,10 @@ Index     Name      Kind        Type      Scope     Attribute
 21:     if (a > 10) {
 22:         x += a;
 23:         // Undeclared variable
-24:         print(b
+24:         print(b);
 
 |-----------------------------------------------|
-| Error found in line 24:         print(b
+| Error found in line 24:         print(b);
 | Undeclared variable b
 |-----------------------------------------------|
 

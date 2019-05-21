@@ -21,23 +21,25 @@
 
     extern int yylineno;
     extern int yylex();
-    extern char* yytext;   // Get current token from lex
-    extern char buf[256];  // Get current code line from lex
-    extern char code_line[128];
+    extern char* yytext;                // Get current token from lex
+    extern char buf[256];               // Get current code line from lex
+    extern char code_line[256];
 
     void yyerror(char *s);
 
     /* Symbol table function - you can add new function if needed. */
     void create_symbol();
     void insert_symbol(symbol_t);
-    int lookup_symbol();
+    int lookup_symbol(char *);
     void dump_symbol();
 
-    table_t *t[32];                  // symbol table
+    table_t *t[32];                     // symbol table
     symbol_t reading, rfunc;
-    int scope = 0;                   // record what scope it is now
-    int create_table_flag[32] = {0}; // decide whether need to create table
+    int scope = 0;                      // record what scope it is now
+    int create_table_flag[32] = {0};    // decide whether need to create table
     int table_item_index[32] = {0};
+    char error_msg[32];                 // the name of the ID that causes error 
+    int error_type_flag = 0;
 %}
 
 /* Use variable or self-defined structure to represent
@@ -73,6 +75,7 @@
 %token LCB "{"
 %token RCB "}"
 %token ENDOFFILE
+%token TRUE FALSE
 
 /* Token with return, which need to sepcify type */
 %token <string> I_CONST
@@ -102,27 +105,32 @@ external:
     | func_def
     ;
 
-stat:
-      compound_stat         { ; }
-    | expression_stat       { ; }
-    | print_func            { ; }
-    | selection_stat        { ; }
-    | loop_stat             { ; }
-    | jump_stat             { ; }
-    ;
-
 declaration:
       type 
-      ID                    { strcpy(reading.name, $2); } 
+      ID                    { strcpy(reading.name, $2);
+                              if (lookup_symbol($2)) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Redeclared variable ");
+                                  strcat(error_msg, $2);
+                              }
+                            } 
       "="                   
       initializer           
       SEMICOLON             { strcpy(reading.kind, "variable"); 
                               reading.scope = scope;
                               reading.index = table_item_index[scope];
                               table_item_index[scope]++; 
-                              insert_symbol(reading); }
+                              if (!error_type_flag)
+                                  insert_symbol(reading); 
+                            }
     | type              
-      ID                    { strcpy(reading.name, $2);} 
+      ID                    { strcpy(reading.name, $2);
+                              if (lookup_symbol($2)) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Redeclared variable ");
+                                  strcat(error_msg, $2);
+                              }
+                            } 
       SEMICOLON             { strcpy(reading.kind, "variable"); 
                               reading.scope = scope;
                               reading.index = table_item_index[scope];
@@ -141,13 +149,15 @@ type:
 
 initializer:
       const
-    | ID                    { ; }
+    | ID                    { if (!lookup_symbol($1)) error_type_flag = 1; }
     ;
 
 const: 
-      I_CONST               { ; }
-    | F_CONST               { ; }
-    | STR_CONST             { ; }
+      I_CONST               
+    | F_CONST               
+    | STR_CONST             
+    | TRUE
+    | FALSE
     ;
 
 func_def:
@@ -161,10 +171,16 @@ declarator:
     ;
 
 direct_declarator:
-      ID                    { strcpy(rfunc.name, $1); } 
+      ID                    { strcpy(rfunc.name, $1); 
+                              if (lookup_symbol($1)) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Redeclared function ");
+                                  strcat(error_msg, $1);
+                              }
+                            } 
     | direct_declarator 
       "(" 
-       ")"                  { strcpy(rfunc.kind, "function"); 
+      ")"                   { strcpy(rfunc.kind, "function"); 
                               rfunc.scope = scope;
                               rfunc.index = table_item_index[scope]; 
                               table_item_index[scope]++; 
@@ -183,6 +199,7 @@ parameters:
       type 
       ID                    { strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
+                              strcpy(reading.attribute, "");
                               scope++; 
                               reading.scope = scope; 
                               reading.index = table_item_index[scope];
@@ -192,6 +209,7 @@ parameters:
     | type 
       ID                    { strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
+                              strcpy(reading.attribute, "");
                               scope++; 
                               reading.scope = scope; 
                               reading.index = table_item_index[scope];
@@ -204,8 +222,8 @@ parameters:
 
 
 compound_stat:
-      "{"                   {;}
-      "}"                   {;}
+      "{"                   
+      "}"                   
     | "{"                   { scope++; }
       block_item_list 
       "}"                   
@@ -221,9 +239,18 @@ block_item:
     | declaration
     ;
 
+stat:
+      compound_stat         
+    | expression_stat       
+    | print_func            
+    | selection_stat        
+    | loop_stat             
+    | jump_stat             
+    ;
+
 expression_stat:
-      SEMICOLON             {;}
-    | expr SEMICOLON        {;}
+      SEMICOLON             
+    | expr SEMICOLON        
     ;
 
 expr:
@@ -319,14 +346,26 @@ argument_list_expr:
     ;
 
 primary_expr:
-      ID
+      ID                    { if (!lookup_symbol($1)) {
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Undeclared variable ");
+                                  strcat(error_msg, $1);
+                              } 
+                            }
     | const
     | "(" expr ")"
     ;
 
 print_func:
       PRINT "(" STR_CONST ")" SEMICOLON   {;}
-    | PRINT "(" ID ")" SEMICOLON         {;}
+    | PRINT 
+      "(" 
+      ID ")" SEMICOLON      { if (!lookup_symbol($3)) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Undeclared variable ");
+                                  strcat(error_msg, $3);
+                              } 
+                            }    
     ;
 
 selection_stat:
@@ -335,10 +374,10 @@ selection_stat:
     ;
 
 loop_stat:
-      WHILE                 {;}
-      "("                   {;}
+      WHILE                 
+      "("                   
       expr
-      ")"                   {;}
+      ")"                   
       stat
     ;
 
@@ -367,7 +406,7 @@ int main(int argc, char** argv)
 void yyerror(char *s)
 {
     printf("\n|-----------------------------------------------|\n");
-    printf("| Error found in line %d: %s\n", yylineno, buf);
+    printf("| Error found in line %d: %s\n", yylineno, code_line);
     printf("| %s", s);
     printf("\n|-----------------------------------------------|\n\n");
 }
@@ -413,9 +452,21 @@ void insert_symbol(symbol_t x)
 
 }
 
-int lookup_symbol() 
+int lookup_symbol(char *str) 
 {
-
+    int i;
+    symbol_t *p;
+    for ( i = scope; i >= 0 ; i-- ) {
+        if (t[i] == NULL) {
+            continue;
+        }
+        for ( p = t[i]->head; p != NULL; p = p->next ) {
+            //printf("%s and %s\n", str, p->name);
+            if (strcmp(str, p->name)==0)
+                return 1;
+        }
+    }
+    return 0;
 }
 
 void dump_symbol() 
@@ -435,8 +486,14 @@ void dump_symbol()
     printf("\n%-10s%-10s%-12s%-10s%-10s%-10s\n\n",
            "Index", "Name", "Kind", "Type", "Scope", "Attribute");
     for ( p = t[scope]->head; p != NULL; ) {
-        printf("%-10d%-10s%-12s%-10s%-10d%-10s\n",
-               p->index, p->name, p->kind, p->type, p->scope, p->attribute);
+        if ( strcmp(p->type, "variable") ) {
+            printf("%-10d%-10s%-12s%-10s%-10d\n",
+                    p->index, p->name, p->kind, p->type, p->scope);
+        }
+        else {
+            printf("%-10d%-10s%-12s%-10s%-10d%-10s\n",
+                    p->index, p->name, p->kind, p->type, p->scope, p->attribute);
+        }
         prev = p;
         p = p->next;
         free(prev);

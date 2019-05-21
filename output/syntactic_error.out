@@ -24,10 +24,10 @@ Index     Name      Kind        Type      Scope     Attribute
 18:     int a = 5;
 19:
 20:     // syntactical error
-21:     iff (a > 10)
+21:     iff (a > 10) {
 
 |-----------------------------------------------|
-| Error found in line 21:     iff (a > 10)
+| Error found in line 21:     iff (a > 10) {
 | Undeclared function iff
 |-----------------------------------------------|
 
