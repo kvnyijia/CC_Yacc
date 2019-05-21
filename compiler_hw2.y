@@ -92,18 +92,18 @@
 /* Grammar section */
 %%
 
-program
-    : program external
+program:
+      program external
     | external
     ;
 
-external
-    : declaration
+external:
+      declaration
     | func_def
     ;
 
-stat
-    : compound_stat         { ; }
+stat:
+      compound_stat         { ; }
     | expression_stat       { ; }
     | print_func            { ; }
     | selection_stat        { ; }
@@ -111,8 +111,8 @@ stat
     | jump_stat             { ; }
     ;
 
-declaration
-    : type 
+declaration:
+      type 
       ID                    { strcpy(reading.name, $2); } 
       "="                   
       initializer           
@@ -131,37 +131,37 @@ declaration
     ;
 
 /* actions can be taken when meet the token or rule */
-type
-    : INT                   { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
+type:
+      INT                   { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
     | FLOAT                 { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
     | BOOL                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
     | STRING                { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
     | VOID                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
     ;
 
-initializer
-    : const
+initializer:
+      const
     | ID                    { ; }
     ;
 
-const 
-    : I_CONST               { ; }
+const: 
+      I_CONST               { ; }
     | F_CONST               { ; }
     | STR_CONST             { ; }
     ;
 
-func_def
-    : type 
+func_def:
+      type 
       declarator 
       compound_stat         
     ;
 
-declarator
-    : direct_declarator
+declarator:
+      direct_declarator
     ;
 
-direct_declarator
-    : ID                    { strcpy(rfunc.name, $1); } 
+direct_declarator:
+      ID                    { strcpy(rfunc.name, $1); } 
     | direct_declarator 
       "(" 
        ")"                  { strcpy(rfunc.kind, "function"); 
@@ -179,8 +179,8 @@ direct_declarator
                               insert_symbol(rfunc); }
     ;
 
-parameters
-    : type 
+parameters:
+      type 
       ID                    { strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               scope++; 
@@ -203,42 +203,41 @@ parameters
     ;
 
 
-compound_stat
-    : "{"                   {;}
+compound_stat:
+      "{"                   {;}
       "}"                   {;}
     | "{"                   { scope++; }
       block_item_list 
-      "}"                   { dump_symbol();
-                              scope--;  }
+      "}"                   
     ;
 
-block_item_list
-    : block_item 
+block_item_list:
+      block_item 
     | block_item_list block_item
     ;
 
-block_item
-    : stat
+block_item:
+      stat
     | declaration
     ;
 
-expression_stat
-    : SEMICOLON             {;}
+expression_stat:
+      SEMICOLON             {;}
     | expr SEMICOLON        {;}
     ;
 
-expr
-    : assign_expr
+expr:
+      assign_expr
     | expr "," assign_expr
     ;
 
-assign_expr
-    : conditional_expr
+assign_expr:
+      conditional_expr
     | unary_expression assign_op assign_expr
     ;
 
-assign_op
-    : "="
+assign_op:
+      "="
     | MULASGN
     | DIVASGN
     | MODASGN
@@ -246,105 +245,105 @@ assign_op
     | SUBASGN
     ;
 
-conditional_expr
-    : logical_or_expr
+conditional_expr:
+      logical_or_expr
     ;
 
-logical_or_expr
-    : logical_and_expr
+logical_or_expr:
+      logical_and_expr
     | logical_or_expr OR logical_and_expr
     ;
 
-logical_and_expr
-    : equality_expression
+logical_and_expr:
+      equality_expression
     | logical_and_expr AND equality_expression
     ;
 
-equality_expression
-    : relational_expression
+equality_expression:
+      relational_expression
     | equality_expression EQ relational_expression
     | equality_expression NE relational_expression
     ;
 
-relational_expression
-    : additive_expression
+relational_expression:
+      additive_expression
     | relational_expression "<" additive_expression
     | relational_expression ">" additive_expression
     | relational_expression LTE additive_expression
     | relational_expression MTE additive_expression
     ;
 
-additive_expression
-    : multiplicative_expression
+additive_expression:
+      multiplicative_expression
     | additive_expression "+" multiplicative_expression
     | additive_expression "-" multiplicative_expression
     ;
 
 
-multiplicative_expression
-    : cast_expression
+multiplicative_expression:
+      cast_expression
     | multiplicative_expression "*" cast_expression
     | multiplicative_expression "/" cast_expression
     | multiplicative_expression "%" cast_expression
     ;
 
-cast_expression
-    : unary_expression
+cast_expression:
+      unary_expression
     | "(" type ")" cast_expression
     ;
 
-unary_expression
-    : postfix_expression
+unary_expression:
+      postfix_expression
     | INC unary_expression
     | DEC unary_expression
     | unary_operator cast_expression
     ;
 
-unary_operator
-    : "+"
+unary_operator:
+      "+"
     | "-"
     | "!"
     ;
 
-postfix_expression
-    : primary_expr
+postfix_expression:
+      primary_expr
     | postfix_expression INC
     | postfix_expression DEC
     | postfix_expression "(" ")"
     | postfix_expression "(" argument_list_expr ")"
     ;
 
-argument_list_expr
-    : assign_expr
+argument_list_expr:
+      assign_expr
     | argument_list_expr "," assign_expr
     ;
 
-primary_expr
-    : ID
+primary_expr:
+      ID
     | const
     | "(" expr ")"
     ;
 
-print_func
-    : PRINT "(" STR_CONST ")" SEMICOLON   {;}
+print_func:
+      PRINT "(" STR_CONST ")" SEMICOLON   {;}
     | PRINT "(" ID ")" SEMICOLON         {;}
     ;
 
-selection_stat
-    : IF "(" expr ")" stat ELSE stat
+selection_stat:
+      IF "(" expr ")" stat ELSE stat
     | IF "(" expr ")" stat
     ;
 
-loop_stat
-    : WHILE                 {;}
+loop_stat:
+      WHILE                 {;}
       "("                   {;}
       expr
       ")"                   {;}
       stat
     ;
 
-jump_stat
-    : RETURN SEMICOLON
+jump_stat:
+      RETURN SEMICOLON
     | RETURN expr SEMICOLON
     ;
 
@@ -426,6 +425,7 @@ void dump_symbol()
     symbol_t *p, *prev;
     if ( t[scope] == NULL ) {
         //puts("!!!!!!!!!!!!!!!!!but actually dump nothing");
+        scope--;
         return;
     }
     if ( t[scope]->head == NULL ) {
@@ -436,12 +436,14 @@ void dump_symbol()
            "Index", "Name", "Kind", "Type", "Scope", "Attribute");
     for ( p = t[scope]->head; p != NULL; ) {
         printf("%-10d%-10s%-12s%-10s%-10d%-10s\n",
-               p->index, p->name, p->kind, p->type, p->scope, "Attribute");
+               p->index, p->name, p->kind, p->type, p->scope, p->attribute);
         prev = p;
         p = p->next;
         free(prev);
     }
+    puts("");
     free(t[scope]);
     create_table_flag[scope] = 0;
     table_item_index[scope] = 0;
+    scope--;
 }
