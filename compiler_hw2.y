@@ -11,6 +11,7 @@
         char type[8];
         int scope;
         char attribute[32];
+        int func_forward_def;
         struct sssss *next;
     } symbol_t;
 
@@ -32,6 +33,7 @@
     void insert_symbol(symbol_t);
     int lookup_symbol(char *);
     void dump_symbol();
+    void dump_parameter();
 
     table_t *t[32];                     // symbol table
     symbol_t reading, rfunc;
@@ -40,6 +42,7 @@
     int table_item_index[32] = {0};
     char error_msg[32];                 // the name of the ID that causes error 
     int error_type_flag = 0;
+    int syntax_error_flag = 0;
 %}
 
 /* Use variable or self-defined structure to represent
@@ -87,6 +90,7 @@
 /* Nonterminal with return, which need to sepcify type */
 
 // %type <string> const
+%type <string> direct_declarator declarator 
 
 
 /* Yacc will start at this nonterminal */
@@ -96,7 +100,7 @@
 %%
 
 program:
-      program external
+      external program
     | external
     ;
 
@@ -136,6 +140,24 @@ declaration:
                               reading.index = table_item_index[scope];
                               table_item_index[scope]++; 
                               insert_symbol(reading); }
+    | type
+      declarator            { scope++;
+                              dump_parameter();
+                              strcpy(rfunc.name, $2); 
+                              if (lookup_symbol($2)) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Redeclared function ");
+                                  strcat(error_msg, $2);
+                              }
+
+                              strcpy(rfunc.kind, "function");
+                              rfunc.func_forward_def = 1; 
+                              rfunc.scope = scope;
+                              rfunc.index = table_item_index[scope]; 
+                              table_item_index[scope]++; 
+                              insert_symbol(rfunc); 
+                        }
+      SEMICOLON
     ;
 
 /* actions can be taken when meet the token or rule */
@@ -162,7 +184,21 @@ const:
 
 func_def:
       type 
-      declarator 
+      declarator            { strcpy(rfunc.name, $2);
+                              int result = lookup_symbol($2);
+                              if (result == 1) { 
+                                  error_type_flag = 1; 
+                                  strcat(error_msg, "Redeclared function ");
+                                  strcat(error_msg, $2);
+                              }
+                              if (result != 2) {
+                                  strcpy(rfunc.kind, "function"); 
+                                  rfunc.scope = scope;
+                                  rfunc.index = table_item_index[scope]; 
+                                  table_item_index[scope]++; 
+                                  insert_symbol(rfunc); 
+                              }
+                            }
       compound_stat         
     ;
 
@@ -171,28 +207,21 @@ declarator:
     ;
 
 direct_declarator:
-      ID                    { strcpy(rfunc.name, $1); 
-                              if (lookup_symbol($1)) { 
-                                  error_type_flag = 1; 
-                                  strcat(error_msg, "Redeclared function ");
-                                  strcat(error_msg, $1);
-                              }
-                            } 
-    | direct_declarator 
+      ID 
       "(" 
-      ")"                   { strcpy(rfunc.kind, "function"); 
-                              rfunc.scope = scope;
-                              rfunc.index = table_item_index[scope]; 
-                              table_item_index[scope]++; 
-                              insert_symbol(rfunc); }
-    | direct_declarator 
+      ")"                   //{ strcpy(rfunc.kind, "function"); 
+                            //  rfunc.scope = scope;
+                            //  rfunc.index = table_item_index[scope]; 
+                            //  table_item_index[scope]++; 
+                            //  insert_symbol(rfunc); }
+    | ID 
       "("                   
       parameters 
-      ")"                   { strcpy(rfunc.kind, "function"); 
-                              rfunc.scope = scope; 
-                              rfunc.index = table_item_index[scope];
-                              table_item_index[scope]++;
-                              insert_symbol(rfunc); }
+      ")"                   //{ strcpy(rfunc.kind, "function"); 
+                            //  rfunc.scope = scope; 
+                            //  rfunc.index = table_item_index[scope];
+                            //  table_item_index[scope]++;
+                            //  insert_symbol(rfunc); }
     ;
 
 parameters:
@@ -397,8 +426,10 @@ int main(int argc, char** argv)
     yylineno = 0;
 
     yyparse();
-    dump_symbol();                              // dump table[0]
-    printf("\nTotal lines: %d \n", yylineno);
+    if (!syntax_error_flag) {
+        dump_symbol();                          // dump table[0]
+        printf("\nTotal lines: %d \n", yylineno);
+    }
 
     return 0;
 }
@@ -409,6 +440,9 @@ void yyerror(char *s)
     printf("| Error found in line %d: %s\n", yylineno, code_line);
     printf("| %s", s);
     printf("\n|-----------------------------------------------|\n\n");
+
+    if (strcmp(s, "syntax error") == 0) 
+        syntax_error_flag = 1;
 }
 
 void create_symbol() 
@@ -462,8 +496,11 @@ int lookup_symbol(char *str)
         }
         for ( p = t[i]->head; p != NULL; p = p->next ) {
             //printf("%s and %s\n", str, p->name);
-            if (strcmp(str, p->name)==0)
+            if (strcmp(str, p->name) == 0) {
+                if (p->func_forward_def)
+                    return 2;
                 return 1;
+            }
         }
     }
     return 0;
@@ -474,13 +511,18 @@ void dump_symbol()
     //puts("!!!!!!!!!!!!!!!!!dump_symbol");
     //printf("~~~~~~~~~~~~scope=%d\n", scope);
     symbol_t *p, *prev;
+    if (syntax_error_flag)
+        return;
+
     if ( t[scope] == NULL ) {
         //puts("!!!!!!!!!!!!!!!!!but actually dump nothing");
         scope--;
         return;
     }
     if ( t[scope]->head == NULL ) {
+        puts("where");
         free(t[scope]);
+        puts("dead");
         return;
     }
     printf("\n%-10s%-10s%-12s%-10s%-10s%-10s\n\n",
@@ -499,6 +541,36 @@ void dump_symbol()
         free(prev);
     }
     puts("");
+    free(t[scope]);
+    t[scope] = NULL;
+    //if (t[scope]==NULL)
+    //    printf("free table[%d]\n", scope);
+    create_table_flag[scope] = 0;
+    table_item_index[scope] = 0;
+    scope--;
+}
+
+void dump_parameter() 
+{
+    //puts("!!!!!!!!!!!!!!!!!dump_parameter");
+    //printf("~~~~~~~~~~~~scope=%d\n", scope);
+    symbol_t *p, *prev;
+    if ( t[scope] == NULL ) {
+        //puts("!!!!!!!!!!!!!!!!!but actually dump nothing");
+        scope--;
+        return;
+    }
+    if ( t[scope]->head == NULL ) {
+        free(t[scope]);
+        return;
+    }
+
+    for ( p = t[scope]->head; p != NULL; ) {
+        prev = p;
+        p = p->next;
+        free(prev);
+    }
+    
     free(t[scope]);
     create_table_flag[scope] = 0;
     table_item_index[scope] = 0;
