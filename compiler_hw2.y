@@ -10,7 +10,7 @@
         char kind[16];
         char type[8];
         int scope;
-        char attribute[32];
+        char attribute[64];
         struct sssss *next;
     } symbol_t;
 
@@ -38,6 +38,7 @@
     int scope = 0;                   // record what scope it is now
     int create_table_flag[32] = {0}; // decide whether need to create table
     int table_item_index[32] = {0};
+    char func_attr[64];              // record the types of parameters of the function
 %}
 
 /* Use variable or self-defined structure to represent
@@ -82,8 +83,9 @@
 %token <string> INT FLOAT BOOL STRING VOID  /* the name of the types */
 
 /* Nonterminal with return, which need to sepcify type */
-
-// %type <string> const
+%type <string> type
+//%type <string> declaration
+//%type <string> parameters
 
 
 /* Yacc will start at this nonterminal */
@@ -92,79 +94,71 @@
 /* Grammar section */
 %%
 
-program
-    : program external
+program:
+      program external
     | external
     ;
 
-external
-    : declaration
+external:
+      declaration
     | func_def
     ;
 
-stat
-    : compound_stat         { ; }
-    | expression_stat       { ; }
-    | print_func            { ; }
-    | selection_stat        { ; }
-    | loop_stat             { ; }
-    | jump_stat             { ; }
+declaration: 
+      type ID               { strcpy(reading.type, $1); printf("type=%s\n", $1);
+                              strcpy(reading.name, $2); } 
+      "=" 
+      initializer 
+      SEMICOLON             { strcpy(reading.kind, "variable"); 
+                              reading.scope = scope;
+                              reading.index = table_item_index[scope];
+                              table_item_index[scope]++; 
+                              insert_symbol(reading); }
+    | type ID               { strcpy(reading.type, $1); printf("type=%s\n", $1);
+                              strcpy(reading.name, $2); } 
+      SEMICOLON             { strcpy(reading.kind, "variable"); 
+                              reading.scope = scope;
+                              reading.index = table_item_index[scope];
+                              table_item_index[scope]++; 
+                              insert_symbol(reading); }
     ;
 
-declaration
-    : type 
-      ID                    { strcpy(reading.name, $2); } 
-      "="                   
-      initializer           
-      SEMICOLON             { strcpy(reading.kind, "variable"); 
-                              reading.scope = scope;
-                              reading.index = table_item_index[scope];
-                              table_item_index[scope]++; 
-                              insert_symbol(reading); }
-    | type              
-      ID                    { strcpy(reading.name, $2);} 
-      SEMICOLON             { strcpy(reading.kind, "variable"); 
-                              reading.scope = scope;
-                              reading.index = table_item_index[scope];
-                              table_item_index[scope]++; 
-                              insert_symbol(reading); }
-    ;
+
 
 /* actions can be taken when meet the token or rule */
-type
-    : INT                   { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | FLOAT                 { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | BOOL                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | STRING                { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | VOID                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
+type:
+      INT                   { $$ = $1; printf("ttype=%s\n", $1); }
+    | FLOAT                 { $$ = $1; printf("ttype=%s\n", $1); }
+    | BOOL                  { $$ = $1; printf("ttype=%s\n", $1); }
+    | STRING                { $$ = $1; printf("ttype=%s\n", $1); }
+    | VOID                  { $$ = $1; printf("ttype=%s\n", $1); }
     ;
 
-initializer
-    : const
-    | ID                    { ; }
+initializer:
+      const
+    | ID                    
     ;
 
-const 
-    : I_CONST               { ; }
-    | F_CONST               { ; }
-    | STR_CONST             { ; }
+const: 
+      I_CONST               
+    | F_CONST               
+    | STR_CONST             
     ;
 
-func_def
-    : type 
-      declarator 
+func_def:
+      type declarator       { strcpy(rfunc.type, $1); }
       compound_stat         
     ;
 
-declarator
-    : direct_declarator
+declarator:
+      direct_declarator
     ;
 
-direct_declarator
-    : ID                    { strcpy(rfunc.name, $1); } 
+direct_declarator:
+      ID                    { strcpy(rfunc.name, $1); } 
     | direct_declarator 
       "(" 
-       ")"                  { strcpy(rfunc.kind, "function"); 
+      ")"                   { strcpy(rfunc.kind, "function"); 
                               rfunc.scope = scope;
                               rfunc.index = table_item_index[scope]; 
                               table_item_index[scope]++; 
@@ -176,12 +170,17 @@ direct_declarator
                               rfunc.scope = scope; 
                               rfunc.index = table_item_index[scope];
                               table_item_index[scope]++;
+                              strcpy(rfunc.attribute, func_attr);
+                              strcpy(func_attr, "");
                               insert_symbol(rfunc); }
     ;
 
-parameters
-    : type 
-      ID                    { strcpy(reading.name, $2); 
+parameters: 
+      type ID               { strcpy(reading.type, $1); 
+                              strcat(func_attr, $1);
+                              strcat(func_attr, "");
+                               
+                              strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               scope++; 
                               reading.scope = scope; 
@@ -189,8 +188,11 @@ parameters
                               table_item_index[scope]++;
                               insert_symbol(reading);
                               scope--; }
-    | type 
-      ID                    { strcpy(reading.name, $2); 
+    | type ID               { strcpy(reading.type, $1); 
+                              strcat(func_attr, $1);
+                              strcat(func_attr, ""); 
+                            
+                              strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               scope++; 
                               reading.scope = scope; 
@@ -203,17 +205,17 @@ parameters
     ;
 
 
-compound_stat
-    : "{"                   {;}
-      "}"                   {;}
+compound_stat:
+      "{"                   
+      "}"                   
     | "{"                   { scope++; }
       block_item_list 
       "}"                   { dump_symbol();
                               scope--;  }
     ;
 
-block_item_list
-    : block_item 
+block_item_list:
+      block_item 
     | block_item_list block_item
     ;
 
@@ -222,9 +224,18 @@ block_item
     | declaration
     ;
 
+stat
+    : compound_stat         
+    | expression_stat       
+    | print_func            
+    | selection_stat        
+    | loop_stat             
+    | jump_stat             
+    ;
+
 expression_stat
-    : SEMICOLON             {;}
-    | expr SEMICOLON        {;}
+    : SEMICOLON             
+    | expr SEMICOLON        
     ;
 
 expr
@@ -326,8 +337,8 @@ primary_expr
     ;
 
 print_func
-    : PRINT "(" STR_CONST ")" SEMICOLON   {;}
-    | PRINT "(" ID ")" SEMICOLON         {;}
+    : PRINT "(" STR_CONST ")" SEMICOLON
+    | PRINT "(" ID ")" SEMICOLON  
     ;
 
 selection_stat
@@ -336,10 +347,10 @@ selection_stat
     ;
 
 loop_stat
-    : WHILE                 {;}
-      "("                   {;}
+    : WHILE                 
+      "("                   
       expr
-      ")"                   {;}
+      ")"
       stat
     ;
 
@@ -436,7 +447,7 @@ void dump_symbol()
            "Index", "Name", "Kind", "Type", "Scope", "Attribute");
     for ( p = t[scope]->head; p != NULL; ) {
         printf("%-10d%-10s%-12s%-10s%-10d%-10s\n",
-               p->index, p->name, p->kind, p->type, p->scope, "Attribute");
+               p->index, p->name, p->kind, p->type, p->scope, p->attribute);
         prev = p;
         p = p->next;
         free(prev);
