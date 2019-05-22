@@ -90,7 +90,8 @@
 /* Nonterminal with return, which need to sepcify type */
 
 // %type <string> const
-%type <string> direct_declarator declarator 
+%type <string> direct_declarator declarator
+%type <string> type 
 
 
 /* Yacc will start at this nonterminal */
@@ -140,7 +141,7 @@ declaration:
                               reading.index = table_item_index[scope];
                               table_item_index[scope]++; 
                               insert_symbol(reading); }
-    | type
+    | type                  
       declarator            { scope++;
                               dump_parameter();
                               strcpy(rfunc.name, $2); 
@@ -155,8 +156,9 @@ declaration:
                               rfunc.scope = scope;
                               rfunc.index = table_item_index[scope]; 
                               table_item_index[scope]++; 
-                              insert_symbol(rfunc); 
-                        }
+                              insert_symbol(rfunc);
+                              strcpy(rfunc.attribute, ""); 
+                            }
       SEMICOLON
     ;
 
@@ -198,6 +200,7 @@ func_def:
                                   table_item_index[scope]++; 
                                   insert_symbol(rfunc); 
                               }
+                              strcpy(rfunc.attribute, "");
                             }
       compound_stat         
     ;
@@ -209,24 +212,17 @@ declarator:
 direct_declarator:
       ID 
       "(" 
-      ")"                   //{ strcpy(rfunc.kind, "function"); 
-                            //  rfunc.scope = scope;
-                            //  rfunc.index = table_item_index[scope]; 
-                            //  table_item_index[scope]++; 
-                            //  insert_symbol(rfunc); }
+      ")"                   
     | ID 
       "("                   
       parameters 
-      ")"                   //{ strcpy(rfunc.kind, "function"); 
-                            //  rfunc.scope = scope; 
-                            //  rfunc.index = table_item_index[scope];
-                            //  table_item_index[scope]++;
-                            //  insert_symbol(rfunc); }
+      ")"                   
     ;
 
 parameters:
       type 
-      ID                    { strcpy(reading.name, $2); 
+      ID                    { strcat(rfunc.attribute, reading.type);
+                              strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               strcpy(reading.attribute, "");
                               scope++; 
@@ -234,9 +230,12 @@ parameters:
                               reading.index = table_item_index[scope];
                               table_item_index[scope]++;
                               insert_symbol(reading);
-                              scope--; }
+                              scope--; 
+                               }
     | type 
-      ID                    { strcpy(reading.name, $2); 
+      ID                    { strcpy(rfunc.attribute, "");
+                              strcat(rfunc.attribute, reading.type);
+                              strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               strcpy(reading.attribute, "");
                               scope++; 
@@ -245,7 +244,7 @@ parameters:
                               table_item_index[scope]++;
                               insert_symbol(reading);
                               scope--; }
-      ","                   
+      ","                   { strcat(rfunc.attribute, ", "); }
       parameters
     ;
 
@@ -398,8 +397,8 @@ print_func:
     ;
 
 selection_stat:
-      IF "(" expr ")" stat ELSE stat
-    | IF "(" expr ")" stat
+      IF "(" expr ")" compound_stat ELSE stat
+    | IF "(" expr ")" compound_stat 
     ;
 
 loop_stat:
@@ -453,14 +452,13 @@ void create_symbol()
         return;
     t[scope]->head = NULL;
     create_table_flag[scope] = 1;
-    //tin++;
 }
 
 /* add new node at tail */
 void insert_symbol(symbol_t x) 
 {
     //puts("!!!!!!!!!!!!!!!!!insert_symbol");
-    //printf("~~~~~~~~~~~~scope=%d\n", scope);
+    //printf("~~~~~~~~~~~~~~~~~scope=%d\n", scope);
     symbol_t *nw, *p; 
     if (!create_table_flag[scope])
         create_symbol();
@@ -480,7 +478,8 @@ void insert_symbol(symbol_t x)
     }
     
     /* move to the tail of the list */
-    for ( p = t[scope]->head; p->next != NULL; p = p->next ) ;
+    for ( p = t[scope]->head; p->next != NULL; p = p->next ) 
+        ;
     nw->next = NULL;
     p->next = nw;
 
@@ -528,7 +527,7 @@ void dump_symbol()
     printf("\n%-10s%-10s%-12s%-10s%-10s%-10s\n\n",
            "Index", "Name", "Kind", "Type", "Scope", "Attribute");
     for ( p = t[scope]->head; p != NULL; ) {
-        if ( strcmp(p->type, "variable") ) {
+        if ( strcmp(p->attribute, "") == 0 ) {
             printf("%-10d%-10s%-12s%-10s%-10d\n",
                     p->index, p->name, p->kind, p->type, p->scope);
         }
@@ -572,6 +571,7 @@ void dump_parameter()
     }
     
     free(t[scope]);
+    t[scope] = NULL;
     create_table_flag[scope] = 0;
     table_item_index[scope] = 0;
     scope--;
