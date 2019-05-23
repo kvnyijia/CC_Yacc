@@ -31,9 +31,11 @@
     /* Symbol table function - you can add new function if needed. */
     void create_symbol();
     void insert_symbol(symbol_t);
-    int lookup_symbol(char *);
+    int lookup_symbol(char *str , int up_to_scope);
     void dump_symbol();
     void dump_parameter();
+    void push_type(char *str);
+    void pop_type();
 
     table_t *t[32];                     // symbol table
     symbol_t reading, rfunc;
@@ -43,6 +45,8 @@
     char error_msg[32];                 // the name of the ID that causes error 
     int error_type_flag = 0;
     int syntax_error_flag = 0;
+    char type_stack[10][8];             // a stack to record types
+    int stack_index = 0;
 %}
 
 /* Use variable or self-defined structure to represent
@@ -77,7 +81,6 @@
 %token COMMA ","
 %token LCB "{"
 %token RCB "}"
-%token ENDOFFILE
 %token TRUE FALSE
 
 /* Token with return, which need to sepcify type */
@@ -113,7 +116,7 @@ external:
 declaration:
       type 
       ID                    { strcpy(reading.name, $2);
-                              if (lookup_symbol($2)) { 
+                              if (lookup_symbol($2, scope)) { 
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Redeclared variable ");
                                   strcat(error_msg, $2);
@@ -121,31 +124,37 @@ declaration:
                             } 
       "="                   
       initializer           
-      SEMICOLON             { strcpy(reading.kind, "variable"); 
+      SEMICOLON             { strcpy(reading.kind, "variable");
+                              pop_type(); 
                               reading.scope = scope;
-                              reading.index = table_item_index[scope];
-                              table_item_index[scope]++; 
-                              if (!error_type_flag)
-                                  insert_symbol(reading); 
+                              reading.index = table_item_index[scope]; 
+                              if (!error_type_flag) {
+                                  table_item_index[scope]++;
+                                  insert_symbol(reading);
+                              } 
                             }
     | type              
       ID                    { strcpy(reading.name, $2);
-                              if (lookup_symbol($2)) { 
+                              if (lookup_symbol($2, scope)) { 
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Redeclared variable ");
                                   strcat(error_msg, $2);
                               }
                             } 
-      SEMICOLON             { strcpy(reading.kind, "variable"); 
+      SEMICOLON             { strcpy(reading.kind, "variable");
+                              pop_type(); 
                               reading.scope = scope;
-                              reading.index = table_item_index[scope];
-                              table_item_index[scope]++; 
-                              insert_symbol(reading); }
+                              reading.index = table_item_index[scope]; 
+                              if (!error_type_flag) {
+                                  table_item_index[scope]++;
+                                  insert_symbol(reading); 
+                              }
+                            }
     | type                  
       declarator            { scope++;
-                              dump_parameter();
+                              dump_parameter();         // because haven't enter the scope yet
                               strcpy(rfunc.name, $2); 
-                              if (lookup_symbol($2)) { 
+                              if (lookup_symbol($2, scope)) { 
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Redeclared function ");
                                   strcat(error_msg, $2);
@@ -153,10 +162,13 @@ declaration:
 
                               strcpy(rfunc.kind, "function");
                               rfunc.func_forward_def = 1; 
+                              pop_type();
                               rfunc.scope = scope;
                               rfunc.index = table_item_index[scope]; 
-                              table_item_index[scope]++; 
-                              insert_symbol(rfunc);
+                              if (!error_type_flag) {
+                                  table_item_index[scope]++;
+                                  insert_symbol(rfunc);
+                              }
                               strcpy(rfunc.attribute, ""); 
                             }
       SEMICOLON
@@ -164,16 +176,15 @@ declaration:
 
 /* actions can be taken when meet the token or rule */
 type:
-      INT                   { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | FLOAT                 { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | BOOL                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | STRING                { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
-    | VOID                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); }
+      INT                   { strcpy(reading.type, $1); strcpy(rfunc.type, $1); push_type($1); }
+    | FLOAT                 { strcpy(reading.type, $1); strcpy(rfunc.type, $1); push_type($1); }
+    | BOOL                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); push_type($1); }
+    | STRING                { strcpy(reading.type, $1); strcpy(rfunc.type, $1); push_type($1); }
+    | VOID                  { strcpy(reading.type, $1); strcpy(rfunc.type, $1); push_type($1); }
     ;
 
 initializer:
-      const
-    | ID                    { if (!lookup_symbol($1)) error_type_flag = 1; }
+      assign_expr
     ;
 
 const: 
@@ -187,12 +198,15 @@ const:
 func_def:
       type 
       declarator            { strcpy(rfunc.name, $2);
-                              int result = lookup_symbol($2);
+                              int result = lookup_symbol($2, scope);
                               if (result == 1) { 
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Redeclared function ");
                                   strcat(error_msg, $2);
                               }
+                              pop_type();
+                              // the function wasn't declared before
+                              // so it needs to be inserted
                               if (result != 2) {
                                   strcpy(rfunc.kind, "function"); 
                                   rfunc.scope = scope;
@@ -231,10 +245,10 @@ parameters:
                               table_item_index[scope]++;
                               insert_symbol(reading);
                               scope--; 
-                               }
+                              pop_type();
+                            }
     | type 
-      ID                    { strcpy(rfunc.attribute, "");
-                              strcat(rfunc.attribute, reading.type);
+      ID                    { strcat(rfunc.attribute, reading.type);
                               strcpy(reading.name, $2); 
                               strcpy(reading.kind, "parameter");
                               strcpy(reading.attribute, "");
@@ -243,7 +257,9 @@ parameters:
                               reading.index = table_item_index[scope];
                               table_item_index[scope]++;
                               insert_symbol(reading);
-                              scope--; }
+                              scope--;
+                              pop_type(); 
+                            }
       ","                   { strcat(rfunc.attribute, ", "); }
       parameters
     ;
@@ -374,7 +390,7 @@ argument_list_expr:
     ;
 
 primary_expr:
-      ID                    { if (!lookup_symbol($1)) {
+      ID                    { if (!lookup_symbol($1, 0)) {
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Undeclared variable ");
                                   strcat(error_msg, $1);
@@ -385,10 +401,10 @@ primary_expr:
     ;
 
 print_func:
-      PRINT "(" STR_CONST ")" SEMICOLON   {;}
+      PRINT "(" STR_CONST ")" SEMICOLON
     | PRINT 
       "(" 
-      ID ")" SEMICOLON      { if (!lookup_symbol($3)) { 
+      ID ")" SEMICOLON      { if (!lookup_symbol($3, 0)) { 
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Undeclared variable ");
                                   strcat(error_msg, $3);
@@ -435,13 +451,17 @@ int main(int argc, char** argv)
 
 void yyerror(char *s)
 {
+    if (strcmp(s, "syntax error") == 0) {
+        yylineno++;
+        printf("%d: %s\n", yylineno, code_line); 
+        syntax_error_flag = 1;
+    }
+    
     printf("\n|-----------------------------------------------|\n");
     printf("| Error found in line %d: %s\n", yylineno, code_line);
     printf("| %s", s);
     printf("\n|-----------------------------------------------|\n\n");
 
-    if (strcmp(s, "syntax error") == 0) 
-        syntax_error_flag = 1;
 }
 
 void create_symbol() 
@@ -454,7 +474,7 @@ void create_symbol()
     create_table_flag[scope] = 1;
 }
 
-/* add new node at tail */
+/* add a new node at tail */
 void insert_symbol(symbol_t x) 
 {
     //puts("!!!!!!!!!!!!!!!!!insert_symbol");
@@ -485,11 +505,17 @@ void insert_symbol(symbol_t x)
 
 }
 
-int lookup_symbol(char *str) 
+/* check whether `str` is in the table or not
+ * from the scope currently at down to `up_to_scope`
+ * if it isn't, return 0
+ * if it is, return 1
+ * if it is a function forward defined before, return 2
+ */
+int lookup_symbol(char *str, int up_to_scope) 
 {
     int i;
     symbol_t *p;
-    for ( i = scope; i >= 0 ; i-- ) {
+    for ( i = scope; i >= up_to_scope ; i-- ) {
         if (t[i] == NULL) {
             continue;
         }
@@ -519,9 +545,7 @@ void dump_symbol()
         return;
     }
     if ( t[scope]->head == NULL ) {
-        puts("where");
         free(t[scope]);
-        puts("dead");
         return;
     }
     printf("\n%-10s%-10s%-12s%-10s%-10s%-10s\n\n",
@@ -532,7 +556,7 @@ void dump_symbol()
                     p->index, p->name, p->kind, p->type, p->scope);
         }
         else {
-            printf("%-10d%-10s%-12s%-10s%-10d%-10s\n",
+            printf("%-10d%-10s%-12s%-10s%-10d%s\n",
                     p->index, p->name, p->kind, p->type, p->scope, p->attribute);
         }
         prev = p;
@@ -575,4 +599,19 @@ void dump_parameter()
     create_table_flag[scope] = 0;
     table_item_index[scope] = 0;
     scope--;
+}
+
+void push_type(char *str)
+{
+    //printf("!!!!!!!!!!!!!!!!!push %s\n", str);
+    strcpy(type_stack[stack_index], str);
+    stack_index++;
+}
+
+void pop_type()
+{
+    stack_index--;
+    //printf("!!!!!!!!!!!!!!!!!pop %s\n", type_stack[stack_index]);
+    strcpy(rfunc.type, type_stack[stack_index]);
+    strcpy(type_stack[stack_index], "");
 }
