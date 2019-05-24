@@ -25,6 +25,7 @@
     extern char* yytext;                // Get current token from lex
     extern char buf[256];               // Get current code line from lex
     extern char code_line[256];
+    extern int rcb_flag;
 
     void yyerror(char *s);
 
@@ -36,6 +37,7 @@
     void dump_parameter();
     void push_type(char *str);
     void pop_type();
+    void parse_newline();
 
     table_t *t[32];                     // symbol table
     symbol_t reading, rfunc;
@@ -47,6 +49,7 @@
     int syntax_error_flag = 0;
     char type_stack[10][8];             // a stack to record types
     int stack_index = 0;
+    char func_redecl[32];
 %}
 
 /* Use variable or self-defined structure to represent
@@ -380,8 +383,15 @@ postfix_expression:
       primary_expr
     | postfix_expression INC
     | postfix_expression DEC
-    | postfix_expression "(" ")"
-    | postfix_expression "(" argument_list_expr ")"
+    | postfix_expression 
+      "(" ")"               { strcpy(error_msg, ""); 
+                              strcat(error_msg, "Undeclared function "); 
+                              strcat(error_msg, func_redecl); }
+    | postfix_expression 
+      "(" argument_list_expr 
+      ")"                   { strcpy(error_msg, ""); 
+                              strcat(error_msg, "Undeclared function "); 
+                              strcat(error_msg, func_redecl); }
     ;
 
 argument_list_expr:
@@ -394,6 +404,7 @@ primary_expr:
                                   error_type_flag = 1; 
                                   strcat(error_msg, "Undeclared variable ");
                                   strcat(error_msg, $1);
+                                  strcpy(func_redecl, $1);
                               } 
                             }
     | const
@@ -452,15 +463,23 @@ int main(int argc, char** argv)
 void yyerror(char *s)
 {
     if (strcmp(s, "syntax error") == 0) {
-        yylineno++;
-        printf("%d: %s\n", yylineno, code_line); 
         syntax_error_flag = 1;
+        yylineno++;
+        parse_newline();
+        return;
     }
     
     printf("\n|-----------------------------------------------|\n");
     printf("| Error found in line %d: %s\n", yylineno, code_line);
     printf("| %s", s);
     printf("\n|-----------------------------------------------|\n\n");
+
+    if (syntax_error_flag) {
+        printf("\n|-----------------------------------------------|\n");
+        printf("| Error found in line %d: %s\n", yylineno, code_line);
+        printf("| syntax error");
+        printf("\n|-----------------------------------------------|\n\n");
+    }
 
 }
 
@@ -614,4 +633,25 @@ void pop_type()
     //printf("!!!!!!!!!!!!!!!!!pop %s\n", type_stack[stack_index]);
     strcpy(rfunc.type, type_stack[stack_index]);
     strcpy(type_stack[stack_index], "");
+}
+
+void parse_newline()
+{
+    if (strcmp(code_line, "") == 0) {
+        printf("%d:\n", yylineno); 
+    }
+    else {
+        printf("%d: %s\n", yylineno, code_line); 
+        if (rcb_flag) {
+            //puts("ready to dump symbol"); 
+            dump_symbol(); 
+            rcb_flag = 0; 
+        }
+        if (error_type_flag == 1) {
+            yyerror(error_msg);
+        }
+        error_type_flag = 0;
+        strcpy(error_msg, "");
+        strcpy(code_line, "");
+    } 
 }

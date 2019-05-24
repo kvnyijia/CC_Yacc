@@ -11,9 +11,9 @@
 
     int rcb_flag = 0;
     extern char error_msg[32];
-    extern int error_type_flag;
     extern void dump_symbol();
     extern void yyerror(char *s);
+    extern void parse_newline();
 %}
 
 /* Define regular expression label */
@@ -130,26 +130,9 @@ star            [*]
  /* others */
 ";"                     { strcat(code_line, yytext);
                           return SEMICOLON; }
-\n                      { if (strcmp(code_line, "") == 0) {
-                              printf("%d:\n", yylineno); 
-                          }
-                          else {
-                              printf("%d: %s\n", yylineno, code_line); 
-                              if (rcb_flag) {
-                                  //puts("ready to dump symbol"); 
-                                  dump_symbol(); 
-                                  rcb_flag = 0; 
-                              }
-                              if (error_type_flag == 1) {
-                                  yyerror(error_msg);
-                              }
-                              error_type_flag = 0;
-                              strcpy(error_msg, "");
-                              strcpy(code_line, "");
-                          } 
-                        }
-{space_or_tab}          { strcat(code_line, yytext); } /* Ignore */
-[^ \t\n]                { } /* Ignore other charactor sets */
+\n                      { parse_newline(); }
+{space_or_tab}          { strcat(code_line, yytext); }  // Ignore
+[^ \t\n]                { }                             // Ignore other charactor sets
 <<EOF>>                 { yyterminate(); }
 
 %%
